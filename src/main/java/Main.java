@@ -6,6 +6,7 @@
  * Vestibulum commodo. Ut rhoncus gravida arcu.
  */
 
+import jdk.internal.jline.internal.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +77,8 @@ public final class Main {
             messages.add(new ChatMessage("Ignacio","Hola"));
             messages.add(new ChatMessage("Pablo","adios"));
             messages.add(new ChatMessage("Javier","Pez"));
+
+
         }
 
         void start() throws IOException {
@@ -107,7 +110,7 @@ public final class Main {
          * @param socket
          * @throws IOException
          */
-        private void sendInfo(final Socket socket) throws IOException {
+        private void sendHTML(final Socket socket) throws IOException {
 
             final PrintWriter pw = new PrintWriter(socket.getOutputStream());
             pw.println("HTTP/1.1 200 OK");
@@ -175,28 +178,22 @@ public final class Main {
                         log.debug("Type of request: {} ignored",request[1]);
                         return;
                     } else if (request[0].equals("POST")) {
-                        messages.add(newMessage(lines.get(13)));
-                        log.debug("Nuevo mensaje añadido.");
+                       newMessage(lines.get(13),Integer.parseInt(lines.get(3).substring(16)));
 
                     }
 
-                    /*
                     log.debug("Size: {}", lines.size());
+
                     for (int i = 0; i < lines.size(); i++) {
                         log.debug("[{}]info: {}", i, lines.get(i));
                     }
-                    */
 
-                    sendInfo(this.socket);
-
+                    sendHTML(this.socket);
 
                 }
                 catch (IOException e){
                     log.error("Error", e);
                 }
-
-
-
             }
         }
 
@@ -206,12 +203,18 @@ public final class Main {
          * @param body
          * @return
          */
-        public ChatMessage newMessage(String body){
+        public void newMessage(String body, int length){
+
+            if(length == 22){
+                //log.debug("Empty info");
+                return;
+            }
 
             String[] datos = body.split("&");
             String user = datos[0].split("=")[1].replace("+"," ");
             String message = datos[1].split("=")[1].replace("+"," ");
-            return new ChatMessage(user,message);
+            messages.add(new ChatMessage(user,message));
+            log.debug("New message added");
 
         }
 
@@ -227,27 +230,34 @@ public final class Main {
             final InputStream is = socket.getInputStream();
             // The list of string readed from inputstream.
             final List<String> lines = new ArrayList<>();
-            // The Scanner
-            final Scanner s = new Scanner(is).useDelimiter("\\A");
 
-            log.debug("Reading the Inputstream ..");
-            String line;
-            while (true) {
-                line = s.nextLine();
-                log.debug("lines: {}", line);
-                if (line.length() == 0) {
-                    if(lines.get(0).contains("POST")){
-                        line = s.nextLine();
-                        lines.add(line);
-                        log.debug("lines: {}", line);
-                        break;
-                    }else{
-                        break;
-                    }
-                } else {
 
-                    lines.add(line);
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(is));
+
+            log.debug("Reading the InputStream ..");
+
+            String line = "";
+            int length = 0;
+
+            while(true){
+                line = bufferedReader.readLine();
+                //log.debug("InputStream: {}",line);
+                if(line.length() > 0){
+                    if (line.contains("Content-Length:"))
+                        length = Integer.parseInt(line.substring(16));
+                }else{
+                    break;
                 }
+                lines.add(line);
+            }
+            if (length > 0){
+                char[] body = new char[length];
+                StringBuilder stringBuilder = new StringBuilder(length);
+                for (int i = 0; i < length ; i++ ){
+                    body[i] = (char) bufferedReader.read();
+                }
+                lines.add(new String(body));
+
             }
 
             return lines;
